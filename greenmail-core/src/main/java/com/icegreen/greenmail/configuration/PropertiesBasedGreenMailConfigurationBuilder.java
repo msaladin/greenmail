@@ -2,6 +2,8 @@ package com.icegreen.greenmail.configuration;
 
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Creates GreenMailConfiguration from properties.
@@ -20,6 +22,13 @@ public class PropertiesBasedGreenMailConfigurationBuilder {
      * Property for list of users.
      */
     public static final String GREENMAIL_USERS = "greenmail.users";
+
+    // User pattern for user in the form: user:password
+    private static final Pattern USER_PATTERN_2 = Pattern.compile("(.*):(.*)");
+
+    // User pattern for user in the form: user:password@domain
+    private static final Pattern USER_PATTERN_3 = Pattern.compile("(.*):(.*)@(.*)");
+
     /**
      * Disables authentication check.
      *
@@ -131,8 +140,31 @@ public class PropertiesBasedGreenMailConfigurationBuilder {
      * @param user - the user in format logon:password[@domain]
      * @return a String array with the different parts, either of length 2 or 3
      */
-    private static String[] parseUser(String user) {
-        return user.trim().split(":|@");
+    protected static String[] parseUser(String user) {
+        String userTrimmed = user.trim();
+
+        // Try the pattern with domain first: user:password@domain
+        Matcher m = USER_PATTERN_3.matcher(userTrimmed);
+        if (!m.matches()) {
+            // Try the pattern without domain next: user:password
+            m = USER_PATTERN_2.matcher(userTrimmed);
+        }
+
+        if (m.matches()) {
+            if (m.groupCount() >= 2) {
+                // At least two capture group need to exist.
+                String[] result = new String[m.groupCount()];
+                result[0] = m.group(1);
+                result[1] = m.group(2);
+                if (m.groupCount() > 2) {
+                    result[2] = m.group(3);
+                }
+                return result;
+            }
+        }
+
+        // Regex was not successfull, just return a zero-length String array
+        return new String[0];
     }
 
 }

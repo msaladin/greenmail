@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 import org.junit.Test;
 
@@ -102,6 +103,22 @@ public class PropertiesBasedGreenMailConfigurationBuilderTest {
         assertEquals("/tmp/gugus", config.getFileStoreRootDirectory());
     }
 
+    @Test
+    public void testParseUserWithDomain() {
+        String[] result= PropertiesBasedGreenMailConfigurationBuilder.parseUser("logon:password@domain.com");
+        assertEquals(3, result.length);
+        assertEquals("logon", result[0]);
+        assertEquals("password", result[1]);
+        assertEquals("domain.com", result[2]);
+    }
+
+    @Test
+    public void testParseUserWithoutDomain() {
+        String[] result= PropertiesBasedGreenMailConfigurationBuilder.parseUser("bill:gates");
+        assertEquals(2, result.length);
+        assertEquals("bill", result[0]);
+        assertEquals("gates", result[1]);
+    }
 
     private Properties createPropertiesFor(String key, String value) {
         Properties props = new Properties();
