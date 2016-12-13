@@ -29,8 +29,7 @@ public class GreenMailConfiguration {
         log.info("  Startup property greenmail.mailsink.user                       : " + mailsinkUser);
         log.info("  Startup property greenmail.mailsink.keep.in.original.mailboxes : " + mailsinkKeepInOriginalMailboxes);
         log.info("  Startup property greenmail.mailstore.impl.class                : " + storeClassImplementation);
-        log.info("  Startup property greenmail.filestore.rootdir                   : " + Paths.get(fileStoreRootDirectory)
-                .toAbsolutePath().toString());
+        log.info("  Startup property greenmail.filestore.rootdir                   : " + Paths.get(fileStoreRootDirectory).toAbsolutePath().toString());
     }
 
     /**

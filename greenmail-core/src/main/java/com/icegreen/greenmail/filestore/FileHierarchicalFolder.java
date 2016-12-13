@@ -88,11 +88,11 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
             }
         }
         catch (IOException io) {
-            throw new UncheckedFileStoreException("IOEXception while creating the filestore with path: '" + this.pathToDir
-                    .toAbsolutePath() + "'", io);
+            String errorStr = "IOEXception while creating the filestore with path: '" + this.pathToDir.toAbsolutePath() + "'";
+            log.error(errorStr, io);
+            throw new UncheckedFileStoreException(errorStr, io);
         }
-        log.debug("Leaving FileHierarchicalFolder constructor for path: " + this.pathToDir.toAbsolutePath().toString() + " "
-                + "with # of messages: " + this.entries.list.size());
+        log.debug("Leaving FileHierarchicalFolder constructor for path: " + this.pathToDir.toAbsolutePath().toString() + " with # of messages: " + this.entries.list.size());
     }
 
     /**
@@ -252,7 +252,6 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
                 listener.mailboxDeleted();
             }
         }
-
     }
 
     @Override
@@ -293,8 +292,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     }
 
     private StoredMessage retrieveOneMessage(MessageEntry entry) {
-        log.debug("Retrieving one message from store with uid: " + entry.getUid() + " and resetting flags to : " + entry
-                .getFlagBitSet());
+        log.debug("Retrieving one message from store with uid: " + entry.getUid() + " and resetting flags to : " + entry.getFlagBitSet());
         try {
             return mtf.retrieveMessage(entry);
         }
@@ -320,19 +318,11 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     }
 
     @Override
-    public long appendMessage(MimeMessage message,
-            Flags flags,
-            Date receivedDate) {
+    public long appendMessage(MimeMessage message, Flags flags, Date receivedDate) {
         this.setLastAccessed();
         log.debug("Entering appendMessage with flags '" + flags + "' and receivedDate: '" + receivedDate);
-        try {
-            log.debug("  Message has the following sentDate: " + message.getSentDate());
-        }
-        catch (MessagingException e) {
-            e.printStackTrace();
-        }
-        long uid = this.ctx.getNextUid();
 
+        long uid = this.ctx.getNextUid();
         try {
             message.setFlags(flags, true);
             message.setFlag(Flags.Flag.RECENT, true);
@@ -364,10 +354,14 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
             }
         }
         catch (IOException e) {
-            throw new UncheckedFileStoreException("IOException happened while writing message to disk: " + uid);
+            String errorStr = "IOException happened while writing message to disk: " + uid;
+            log.error(errorStr, e);
+            throw new UncheckedFileStoreException(errorStr);
         }
         catch (MessagingException e) {
-            throw new UncheckedFileStoreException("MessagingException happened while writing message to disk: " + uid);
+            String errorStr = "MessagingException happened while writing message to disk: " + uid;
+            log.error(errorStr, e);
+            throw new UncheckedFileStoreException(errorStr);
         }
 
         // Notify all the listeners of the new message
@@ -396,9 +390,9 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     }
 
     @Override
-    public void setFlags(Flags flags, boolean value, long uid, FolderListener silentListener, boolean addUid)
-            throws FolderException {
+    public void setFlags(Flags flags, boolean value, long uid, FolderListener silentListener, boolean addUid) throws FolderException {
         this.setLastAccessed();
+
         log.debug("Entering setFlags with: ");
         log.debug("  Flags          : " + flags);
         log.debug("  Value          : " + value);
@@ -710,8 +704,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
 
         synchronized (this.entries.syncLock) {
             for (MessageEntry entry : this.entries.list) {
-                if (FileStoreUtil.isDeletedFlagSet(entry.getFlagBitSet()) && (idRanges == null || IdRange.containsUid(idRanges,
-                        entry.getUid()))) {
+                if (FileStoreUtil.isDeletedFlagSet(entry.getFlagBitSet()) && (idRanges == null || IdRange.containsUid(idRanges, entry.getUid()))) {
                     toDelete.add(entry);
                 }
             }
@@ -778,11 +771,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
 
     @Override
     public String toString() {
-        return "FileHierarchicalFolder{" +
-                "name='" + name + '\'' +
-                ", path=" + this.pathToDir +
-                ", isSelectable=" + this.settings.isSelectable +
-                '}';
+        return "FileHierarchicalFolder{" + "name='" + name + '\'' + ", path=" + this.pathToDir + ", isSelectable=" + this.settings.isSelectable + '}';
     }
 
 

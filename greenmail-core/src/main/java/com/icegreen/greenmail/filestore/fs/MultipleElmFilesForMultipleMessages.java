@@ -73,8 +73,7 @@ public class MultipleElmFilesForMultipleMessages extends MessageToFS {
         ArrayList<MessageEntry>toDeleteList = new ArrayList<>();
         for (MessageEntry e : synchedList) {
             if (e.getShortFileName() == null) {
-                log.debug("cleanupAfterLoading: Delete entry with uid: " + e.getUid() + ", because file with ELM message does "
-                        + "not exist.");
+                log.debug("cleanupAfterLoading: Delete entry with uid: " + e.getUid() + ", because file with ELM message does not exist.");
                 toDeleteList.add(e);
             }
         }

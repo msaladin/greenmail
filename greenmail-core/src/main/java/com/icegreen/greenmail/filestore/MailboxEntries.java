@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
  * See methods writeToDOS() and readFromDIS() for more information about the content of the file.
  */
 class MailboxEntries {
-
     final Logger log = LoggerFactory.getLogger(FileHierarchicalFolder.class);
 
     final Object syncLock = new Object();
@@ -41,17 +40,9 @@ class MailboxEntries {
         this.mailboxEntriesFile = pathToEntriesFile;
     }
 
-    void storeFileToFS() {
-        synchronized (this.syncLock) {
-            this.storeFileToFSWithoutSync();
-        }
-    }
-
     void storeFileToFSWithoutSync() {
         try {
-            try (OutputStream os = Files.newOutputStream(this.mailboxEntriesFile, CREATE, WRITE, TRUNCATE_EXISTING);
-                    DataOutputStream
-                            dos = new DataOutputStream(os)) {
+            try (OutputStream os = Files.newOutputStream(this.mailboxEntriesFile, CREATE, WRITE, TRUNCATE_EXISTING); DataOutputStream dos = new DataOutputStream(os)) {
                 for (MessageEntry me : list) {
                     this.writeToDOS(me, dos);
                 }
@@ -59,8 +50,9 @@ class MailboxEntries {
             }
         }
         catch (IOException e) {
-            throw new UncheckedFileStoreException("IOException happened while trying to write message file: " + this
-                    .mailboxEntriesFile, e);
+            String errorStr = "IOException happened while trying to write message file: " + this.mailboxEntriesFile;
+            log.error(errorStr, e);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
     }
 
@@ -72,8 +64,7 @@ class MailboxEntries {
     void storeFileToFSForSingleEntryWithoutSync(int index) {
         ByteBuffer toWriteBuffer;
         try {
-            try (ByteArrayOutputStream bos = new ByteArrayOutputStream(MessageEntry.MSG_ENTRY_SIZE);
-                    DataOutputStream dos = new DataOutputStream(bos);) {
+            try (ByteArrayOutputStream bos = new ByteArrayOutputStream(MessageEntry.MSG_ENTRY_SIZE); DataOutputStream dos = new DataOutputStream(bos);) {
                 MessageEntry me = this.list.get(index);
                 this.writeToDOS(me, dos);
                 toWriteBuffer = ByteBuffer.wrap(bos.toByteArray());
@@ -87,10 +78,9 @@ class MailboxEntries {
             }
         }
         catch (IOException e) {
-            throw new UncheckedFileStoreException(
-                    "IOException happened while trying to write one entry (index: " + index + ") to message file: "
-                            + this.mailboxEntriesFile,
-                    e);
+            String errorStr = "IOException happened while trying to write one entry (index: " + index + ") to message file: " + this.mailboxEntriesFile;
+            log.error(errorStr, e);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
     }
 
@@ -101,10 +91,8 @@ class MailboxEntries {
         synchronized (this.syncLock) {
             if (Files.isRegularFile(this.mailboxEntriesFile)) {
                 try {
-
                     boolean changedEntries = false;
-                    try (InputStream is = Files.newInputStream(this.mailboxEntriesFile);
-                            DataInputStream dis = new DataInputStream(is)) {
+                    try (InputStream is = Files.newInputStream(this.mailboxEntriesFile); DataInputStream dis = new DataInputStream(is)) {
                         while (true) {
                             try {
                                 MessageEntry e = new MessageEntry();
@@ -125,8 +113,9 @@ class MailboxEntries {
                     }
                 }
                 catch (IOException e) {
-                    throw new UncheckedFileStoreException(
-                            "IOException happened while trying to read message file: " + this.mailboxEntriesFile,e);
+                    String errorStr = "IOException happened while trying to read message file: " + this.mailboxEntriesFile;
+                    log.error(errorStr, e);
+                    throw new UncheckedFileStoreException(errorStr,e);
                 }
             }
         }
@@ -141,8 +130,9 @@ class MailboxEntries {
                 Files.delete(this.mailboxEntriesFile);
             }
             catch (IOException e) {
-                throw new UncheckedFileStoreException("IOException happened while trying to delete message file: " + this
-                        .mailboxEntriesFile, e);
+                String errorStr = "IOException happened while trying to delete message file: " + this.mailboxEntriesFile;
+                log.error(errorStr, e);
+                throw new UncheckedFileStoreException(errorStr, e);
             }
         }
     }
@@ -176,6 +166,5 @@ class MailboxEntries {
         me.setLenInMboxFile(dis.readInt());
         // Do this in a backward compatible way: Only add additional properties at the end!
     }
-
 
 }

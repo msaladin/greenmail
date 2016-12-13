@@ -53,10 +53,10 @@ public class MBoxFileStore implements Store {
         this.rootDir = Paths.get(startupConfig.getFileStoreRootDirectory());
         this.pidFile = this.rootDir.resolve("greenmail.pid");
         if (Files.isRegularFile(this.pidFile)) {
-            throw new UncheckedFileStoreException("Greenmail PID file '" + this.pidFile.toAbsolutePath().toString() + "' "
-                    + "already exists. No two running Greenmail instances can access the same filestore. Please make sure that "
-                    + "the process referred in the PID file is no longer running, and then delete the PID file manually. Thanks"
-                    + " you.");
+            String errStr = "Greenmail PID file '" + this.pidFile.toAbsolutePath().toString() + "' already exists. No two running Greenmail instances can access the same filestore. " +
+                    " Please make sure that the process referred in the PID file is no longer running, and then delete the PID file manually. Thank you.";
+            log.error(errStr);
+            throw new UncheckedFileStoreException(errStr);
         }
 
         this.userListFile = this.rootDir.resolve("userlist");
@@ -80,8 +80,9 @@ public class MBoxFileStore implements Store {
         StringTokenizer tokens = new StringTokenizer(absoluteMailboxName, HIERARCHY_DELIMITER);
         // The first token must be "#mail"
         if (!tokens.hasMoreTokens() || !tokens.nextToken().equalsIgnoreCase(USER_NAMESPACE)) {
-            throw new UncheckedFileStoreException("Mailbox with absolute name '" + absoluteMailboxName + "' is not valid "
-                    + "because it does not start with '" + USER_NAMESPACE + "'");
+            String errorStr = "Mailbox with absolute name '" + absoluteMailboxName + "' is not valid because it does not start with '" + USER_NAMESPACE + "'";
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr);
         }
         Path mboxPath = FileStoreUtil.convertFullNameToPath(this.rootDir.toAbsolutePath().toString(), absoluteMailboxName);
         if (Files.isDirectory(mboxPath)) {
@@ -96,8 +97,9 @@ public class MBoxFileStore implements Store {
     public MailFolder getMailbox(MailFolder parent, String mailboxName) {
         log.debug("Enterint getMailbox with parent '" + parent + "' and mailboxName '" + mailboxName + "'");
         if (!(parent instanceof FileHierarchicalFolder)) {
-            throw new UncheckedFileStoreException(
-                    "Cannot create a MBoxFileStore mailbox from a parent which is not of type FileHierarchicalFolder");
+            String errorStr = "Cannot create a MBoxFileStore mailbox from a parent which is not of type FileHierarchicalFolder";
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr);
         }
         FileHierarchicalFolder parentCasted = (FileHierarchicalFolder) parent;
         Path parentPath = parentCasted.getPathToDir();
@@ -115,12 +117,12 @@ public class MBoxFileStore implements Store {
 
 
     public MailFolder createMailbox(MailFolder parent, String mailboxName, boolean selectable) throws FolderException {
-        log.debug("Entering createMailbox with parent: '" + parent + "' and name '" + mailboxName + "', and selectable: "
-                + selectable);
+        log.debug("Entering createMailbox with parent: '" + parent + "' and name '" + mailboxName + "', and selectable: " + selectable);
 
         if (!(parent instanceof FileHierarchicalFolder)) {
-            throw new UncheckedFileStoreException("Cannot create a MBoxFileStore mailbox from a parent which is not of type "
-                    + "FileHierarchicalFolder, parent is of type: " + parent.getClass().toString());
+            String errorStr = "Cannot create a MBoxFileStore mailbox from a parent which is not of type FileHierarchicalFolder, parent is of type: " + parent.getClass().toString();
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr);
         }
         FileHierarchicalFolder parentCasted = (FileHierarchicalFolder) parent;
         Path parentPath = parentCasted.getPathToDir();
@@ -205,8 +207,8 @@ public class MBoxFileStore implements Store {
 
     public Collection<MailFolder> getChildren(MailFolder parent) {
         if (!(parent instanceof FileHierarchicalFolder)) {
-            throw new UncheckedFileStoreException(
-                    "Cannot create a MBoxFileStore mailbox from a parent which is not of type FileHierarchicalFolder");
+            String errorStr = "Cannot create a MBoxFileStore mailbox from a parent which is not of type FileHierarchicalFolder";
+            throw new UncheckedFileStoreException(errorStr);
         }
 
         log.debug("Entering getChilden for mail folder: " + parent);
@@ -236,8 +238,9 @@ public class MBoxFileStore implements Store {
 
     public MailFolder setSelectable(MailFolder folder, boolean selectable) {
         if (!(folder instanceof FileHierarchicalFolder)) {
-            throw new UncheckedFileStoreException("Cannot set the selectable flag from a mailfolder of type: " + folder
-                    .getClass().toString());
+            String errorStr = "Cannot set the selectable flag from a mailfolder of type: " + folder.getClass().toString();
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr);
         }
         FileHierarchicalFolder realFolder = (FileHierarchicalFolder) folder;
         realFolder.setSelectable(selectable);
@@ -246,8 +249,9 @@ public class MBoxFileStore implements Store {
 
     public void deleteMailbox(MailFolder folder) throws FolderException {
         if (!(folder instanceof FileHierarchicalFolder)) {
-            throw new UncheckedFileStoreException("Cannot delete a mailbox of type: " + folder.getClass().toString() + ". We "
-                    + "can only delete mailboxes of type FileHierarchicalFolder.");
+            String errorStr = "Cannot delete a mailbox of type: " + folder.getClass().toString() + ". We can only delete mailboxes of type FileHierarchicalFolder.";
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr);
         }
 
         FileHierarchicalFolder toDelete = (FileHierarchicalFolder) folder;
@@ -266,8 +270,9 @@ public class MBoxFileStore implements Store {
             Files.delete(toDelete.getPathToDir());
         }
         catch (IOException e) {
-            throw new FolderException("IOException occurred while deleting mailbox folder '" + toDelete.getPathToDir()
-                    .toAbsolutePath() + "'.", e);
+            String errorStr = "IOException occurred while deleting mailbox folder '" + toDelete.getPathToDir().toAbsolutePath() + "'.";
+            log.error(errorStr);
+            throw new FolderException(errorStr, e);
         }
     }
 
@@ -305,30 +310,30 @@ public class MBoxFileStore implements Store {
     synchronized public void writeUserStore(Collection<GreenMailUser> userList) {
         log.info("Writing Greemail users to file: " + this.userListFile.toAbsolutePath().toString());
 
-        try (BufferedWriter bw = Files.newBufferedWriter(userListFile, java.nio.charset.Charset.forName("UTF-8"), CREATE, WRITE,
-                TRUNCATE_EXISTING)) {
+        try (BufferedWriter bw = Files.newBufferedWriter(userListFile, java.nio.charset.Charset.forName("UTF-8"), CREATE, WRITE, TRUNCATE_EXISTING)) {
             for (GreenMailUser user : userList) {
                 bw.write(user.toSingleLine());
                 bw.newLine();
             }
         }
         catch (IOException e) {
-            throw new UncheckedFileStoreException(
-                    "IOException happened while trying to write file with Greemail users " + this.userListFile, e);
+            String errorStr = "IOException happened while trying to write file with Greemail users " + this.userListFile;
+            log.error(errorStr, e);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
     }
 
     private void writePIDFile() {
         int processId = FileStoreUtil.getProcessId();
         log.info("Writing current process id: " + processId + " to '" + this.pidFile.toAbsolutePath().toString() + "'");
-        try (BufferedWriter bw = Files.newBufferedWriter(pidFile, java.nio.charset.Charset.forName("UTF-8"), CREATE, WRITE,
-                TRUNCATE_EXISTING)) {
+        try (BufferedWriter bw = Files.newBufferedWriter(pidFile, java.nio.charset.Charset.forName("UTF-8"), CREATE, WRITE, TRUNCATE_EXISTING)) {
             bw.write(Integer.toString(processId));
             bw.newLine();
         }
         catch (IOException e) {
-            throw new UncheckedFileStoreException(
-                    "IOException happened while trying to write PID file for Greenmail: " + this.pidFile, e);
+            String errorStr = "IOException happened while trying to write PID file for Greenmail: " + this.pidFile;
+            log.error(errorStr, e);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
     }
 
@@ -338,7 +343,9 @@ public class MBoxFileStore implements Store {
                 Files.delete(this.pidFile);
             }
             catch (IOException e) {
-                throw new UncheckedFileStoreException("IOException happened while trying to delete PID file: " + this.pidFile, e);
+                String errorStr = "IOException happened while trying to delete PID file: " + this.pidFile;
+                log.error(errorStr, e);
+                throw new UncheckedFileStoreException(errorStr, e);
             }
         }
     }
@@ -355,8 +362,8 @@ public class MBoxFileStore implements Store {
                 }
             }
             catch (IOException e) {
-                throw new UncheckedFileStoreException(
-                        "IOException happened while trying to read file with Greemail users " + this.userListFile, e);
+                String errorStr = "IOException happened while trying to read file with Greemail users " + this.userListFile;
+                throw new UncheckedFileStoreException(errorStr, e);
             }
         }
         return result;

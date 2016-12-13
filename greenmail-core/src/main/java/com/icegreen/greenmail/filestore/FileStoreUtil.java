@@ -16,18 +16,11 @@ import sun.management.VMManagement;
  * Created by saladin on 11/2/16.
  */
 public class FileStoreUtil {
-    //public static final String FILESTORE_ROOT_DIR = "/tmp/filestore";
-
     private static final int ANSWERED = 1;  // 00000001
-
     private static final int DELETED = 2;  // 00000010
-
     private static final int DRAFT = 4;  // 00000100
-
     private static final int FLAGGED = 8;  // 00001000
-
     private static final int RECENT = 16; // 00010000
-
     private static final int SEEN = 32; // 00100000
 
     public static int getProcessId() {

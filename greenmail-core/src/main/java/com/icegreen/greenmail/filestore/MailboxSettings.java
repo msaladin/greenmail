@@ -21,7 +21,6 @@ import org.slf4j.LoggerFactory;
  * See methods writeToDOS() and readFromDIS() for more information about the content of the file.
  */
 class MailboxSettings {
-
     final Logger log = LoggerFactory.getLogger(FileHierarchicalFolder.class);
 
     private final Object syncLock = new Object();
@@ -42,16 +41,14 @@ class MailboxSettings {
         synchronized (this.syncLock) {
             if (Files.isRegularFile(this.mailboxSettingsFile)) {
                 try {
-                    try (InputStream is = Files.newInputStream(this.mailboxSettingsFile);
-                            DataInputStream dis = new DataInputStream(is)) {
+                    try (InputStream is = Files.newInputStream(this.mailboxSettingsFile); DataInputStream dis = new DataInputStream(is)) {
                         this.readFromDIS(dis);
-                        // Do this in a backward compatible way: Only add additional properties at the end!
                     }
                 }
                 catch (IOException e) {
-                    throw new UncheckedFileStoreException(
-                            "IOException happened while trying to read settings file: " + this.mailboxSettingsFile,
-                            e);
+                    String errorStr = "IOException happened while trying to read settings file: " + this.mailboxSettingsFile;
+                    log.error(errorStr, e);
+                    throw new UncheckedFileStoreException(errorStr, e);
                 }
             }
         }
@@ -63,18 +60,13 @@ class MailboxSettings {
     void storeFileToFS() {
         synchronized (this.syncLock) {
             try {
-                try (OutputStream os = Files.newOutputStream(this.mailboxSettingsFile, CREATE, WRITE, TRUNCATE_EXISTING);
-                        DataOutputStream
-                                dos =
-                                new
-                                        DataOutputStream(os)) {
+                try (OutputStream os = Files.newOutputStream(this.mailboxSettingsFile, CREATE, WRITE, TRUNCATE_EXISTING); DataOutputStream dos = new DataOutputStream(os)) {
                     this.writeToDOS(dos);
                     dos.flush();
                 }
             }
             catch (IOException e) {
-                throw new UncheckedFileStoreException("IOException happened while trying to write settings file: " + this
-                        .mailboxSettingsFile, e);
+                throw new UncheckedFileStoreException("IOException happened while trying to write settings file: " + this.mailboxSettingsFile, e);
             }
         }
     }
@@ -89,8 +81,9 @@ class MailboxSettings {
                     Files.delete(this.mailboxSettingsFile);
                 }
                 catch (IOException e) {
-                    throw new UncheckedFileStoreException(
-                            "IOException happened while trying to delete settings: " + this.mailboxSettingsFile, e);
+                    String errorStr = "IOException happened while trying to delete settings: " + this.mailboxSettingsFile;
+                    log.error(errorStr, e);
+                    throw new UncheckedFileStoreException(errorStr, e);
                 }
             }
         }

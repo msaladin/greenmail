@@ -59,8 +59,6 @@ class FileBaseContext {
 
     /**
      * Package-Private constructor, only to be invoked by the filestore package.
-     *
-     * @param pathToMboxRootDir
      */
     FileBaseContext(Path pathToMboxRootDir) {
         this.mboxFileStoreRootDir = pathToMboxRootDir;
@@ -70,8 +68,9 @@ class FileBaseContext {
                 Files.createDirectories(this.mboxFileStoreRootDir);
             }
             catch (IOException e) {
-                throw new UncheckedFileStoreException("IOEXception while creating the directory: '" + this.mboxFileStoreRootDir
-                        .toAbsolutePath() + " to store the file-based Greenmail store.'", e);
+                String errorStr = "IOEXception while creating the directory: '" + this.mboxFileStoreRootDir.toAbsolutePath() + " to store the file-based Greenmail store.'";
+                log.error(errorStr, e);
+                throw new UncheckedFileStoreException(errorStr, e);
             }
         }
 
@@ -110,8 +109,7 @@ class FileBaseContext {
     private void cleanupCache() {
         for (FileHierarchicalFolder folder : this.mailboxCache.values()) {
             if (folder.getAgeOfLastAccessInMillis() > MAX_AGE_IN_CACHE_MILLIS) {
-                log.debug("Remove mailbox with path '" + folder.getPathToDir() + "' from memory cache, because it was not "
-                        + "accessed for longer than " + folder.getAgeOfLastAccessInMillis() + " millis.");
+                log.debug("Remove mailbox with path '" + folder.getPathToDir() + "' from memory cache, because it was not accessed for longer than " + folder.getAgeOfLastAccessInMillis() + " millis.");
                 this.mailboxCache.remove(folder);
             }
         }
@@ -178,8 +176,7 @@ class FileBaseContext {
                 }
             }
             catch (IOException e) {
-                throw new UncheckedFileStoreException("IOException happened while trying to read the Filestore settings file: " +
-                        this.fileStoreSettings,e);
+                throw new UncheckedFileStoreException("IOException happened while trying to read the Filestore settings file: " + this.fileStoreSettings,e);
             }
         }
     }
@@ -190,8 +187,7 @@ class FileBaseContext {
      */
     private void storeFileToFS() {
         try {
-            try (OutputStream os = Files.newOutputStream(this.fileStoreSettings, CREATE, WRITE, TRUNCATE_EXISTING); DataOutputStream
-                    dos = new DataOutputStream(os)) {
+            try (OutputStream os = Files.newOutputStream(this.fileStoreSettings, CREATE, WRITE, TRUNCATE_EXISTING); DataOutputStream dos = new DataOutputStream(os)) {
                 this.writeToDOS(dos);
                 // Do this in a backward compatible way: Only add additional properties at the end!
                 dos.flush();

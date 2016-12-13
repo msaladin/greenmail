@@ -60,46 +60,50 @@ public class Managers {
     /**
      * Creates the store class (InMemory or File-based), depending on the Startup Properties.
      *
-     * @param startupConfig
+     * @param startcfg
      */
-    private void constructStore(GreenMailConfiguration startupConfig) {
+    private void constructStore(GreenMailConfiguration startcfg) {
         Class<?> storeClass = null;
         try {
-            storeClass = Class.forName(startupConfig.getStoreClassImplementation());
+            storeClass = Class.forName(startcfg.getStoreClassImplementation());
             Constructor[] ctors = storeClass.getDeclaredConstructors();
             Constructor chosenConstructor = null;
             for (Constructor cstr : ctors) {
                 if (cstr.getGenericParameterTypes().length == 1) {
                     Type firstParamType = cstr.getGenericParameterTypes()[0];
-                    if (firstParamType.equals(startupConfig.getClass())) {
+                    if (firstParamType.equals(startcfg.getClass())) {
                         chosenConstructor = cstr;
                         break;
                     }
                 }
             }
             if (chosenConstructor == null) {
-                throw new UncheckedFileStoreException("Cannot find correct constructor of class '" + startupConfig
-                        .getStoreClassImplementation() + "'. The constructor must have one parameter of type "
-                        + "GreenMailConfiguration.");
+                String errorStr = "Cannot find correct constructor of class '" + startcfg.getStoreClassImplementation() + "'. The constructor must have one parameter of type GreenMailConfiguration.";
+                log.error(errorStr);
+                throw new UncheckedFileStoreException(errorStr);
             }
 
-            this.storeToUse = (Store)chosenConstructor.newInstance(startupConfig);
+            this.storeToUse = (Store)chosenConstructor.newInstance(startcfg);
         }
         catch (ClassNotFoundException e) {
-            throw new UncheckedFileStoreException("ClassNotFoundException while trying to create instance of store class '" +
-                    startupConfig.getStoreClassImplementation() + "'.", e);
+            String errorStr = "ClassNotFoundException while trying to create instance of store class '" + startcfg.getStoreClassImplementation() + "'.";
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
         catch (InstantiationException e) {
-            throw new UncheckedFileStoreException("InstantiationException while trying to create instance of store class '" +
-                    startupConfig.getStoreClassImplementation() + "'.", e);
+            String errorStr = "InstantiationException while trying to create instance of store class '" + startcfg.getStoreClassImplementation() + "'.";
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
         catch (IllegalAccessException e) {
-            throw new UncheckedFileStoreException("IllegalAccessException while trying to create instance of store class '" +
-                    startupConfig.getStoreClassImplementation() + "'.", e);
+            String errorStr = "IllegalAccessException while trying to create instance of store class '" + startcfg.getStoreClassImplementation() + "'.";
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
         catch (InvocationTargetException e) {
-            throw new UncheckedFileStoreException("InvocationTargetException while trying to create instance of store class '" +
-                    startupConfig.getStoreClassImplementation() + "'.", e);
+            String errorStr = "InvocationTargetException while trying to create instance of store class '" + startcfg.getStoreClassImplementation() + "'.";
+            log.error(errorStr);
+            throw new UncheckedFileStoreException(errorStr, e);
         }
     }
 

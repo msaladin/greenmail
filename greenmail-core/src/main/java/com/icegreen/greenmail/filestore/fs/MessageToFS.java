@@ -8,11 +8,15 @@ import javax.mail.MessagingException;
 import com.icegreen.greenmail.filestore.MessageEntry;
 import com.icegreen.greenmail.filestore.UncheckedFileStoreException;
 import com.icegreen.greenmail.store.StoredMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Abstract class to really store/retrieve mail message to the FS.
  */
 public abstract class MessageToFS {
+    final Logger log = LoggerFactory.getLogger(MessageToFS.class);
+
     public static final String GREENMAIL_HEADER_UID = "X-Greenmail-UID";
 
     /**
@@ -53,8 +57,9 @@ public abstract class MessageToFS {
                 uid = Long.parseLong(uidFromHeader[0].trim());
             }
             catch (NumberFormatException nfe) {
-                throw new UncheckedFileStoreException("The message does not contain a header of type " + GREENMAIL_HEADER_UID +
-                        "'. Cannot determine the UID.", nfe);
+                String errorStr = "The message does not contain a header of type " + GREENMAIL_HEADER_UID + "'. Cannot determine the UID.";
+                log.error(errorStr, nfe);
+                throw new UncheckedFileStoreException(errorStr, nfe);
             }
         }
         return uid;

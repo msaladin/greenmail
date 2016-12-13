@@ -105,8 +105,7 @@ public class PropertiesBasedGreenMailConfigurationBuilder {
                 configuration.withMailsinkUser(userParts[0] + '@' + userParts[2], userParts[0], userParts[1]);
                 break;
             default:
-                throw new IllegalArgumentException("Expected format login:pwd[@domain] but got " + mailSinkUser
-                        + " parsed to " + Arrays.toString(userParts) + " for property " + GREENMAIL_MAILSINK_USER);
+                throw new IllegalArgumentException("Expected format login:pwd[@domain] but got " + mailSinkUser + " parsed to " + Arrays.toString(userParts) + " for property " + GREENMAIL_MAILSINK_USER);
         }
     }
 
@@ -121,8 +120,7 @@ public class PropertiesBasedGreenMailConfigurationBuilder {
                 configuration.withUser(userParts[0] + '@' + userParts[2], userParts[0], userParts[1]);
                 break;
             default:
-                throw new IllegalArgumentException("Expected format login:pwd[@domain] but got " + user
-                        + " parsed to " + Arrays.toString(userParts));
+                throw new IllegalArgumentException("Expected format login:pwd[@domain] but got " + user + " parsed to " + Arrays.toString(userParts));
         }
     }
 
