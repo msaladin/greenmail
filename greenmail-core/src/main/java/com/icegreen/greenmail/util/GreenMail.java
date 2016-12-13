@@ -16,6 +16,7 @@ import javax.mail.internet.MimeMessage;
 import com.icegreen.greenmail.Managers;
 import com.icegreen.greenmail.configuration.ConfiguredGreenMail;
 import com.icegreen.greenmail.configuration.GreenMailConfiguration;
+import com.icegreen.greenmail.filestore.MBoxFileStore;
 import com.icegreen.greenmail.imap.ImapHostManager;
 import com.icegreen.greenmail.imap.ImapServer;
 import com.icegreen.greenmail.pop3.Pop3Server;
@@ -23,6 +24,7 @@ import com.icegreen.greenmail.server.AbstractServer;
 import com.icegreen.greenmail.smtp.SmtpManager;
 import com.icegreen.greenmail.smtp.SmtpServer;
 import com.icegreen.greenmail.store.FolderException;
+import com.icegreen.greenmail.store.InMemoryStore;
 import com.icegreen.greenmail.store.MailFolder;
 import com.icegreen.greenmail.store.Store;
 import com.icegreen.greenmail.store.StoredMessage;
@@ -35,8 +37,9 @@ import org.slf4j.LoggerFactory;
  * Utility class that manages a greenmail server with support for multiple protocols
  */
 public class GreenMail extends ConfiguredGreenMail {
-    final Logger log = LoggerFactory.getLogger(GreenMail.class);
+    private final Logger log = LoggerFactory.getLogger(GreenMail.class);
     private Managers managers;
+    private Store storeToUse = null;
     private Map<String, AbstractServer> services;
     private ServerSetup[] config;
 
@@ -78,8 +81,14 @@ public class GreenMail extends ConfiguredGreenMail {
      * Initialize
      */
     private void init() {
+        if (storeToUse == null) {
+            log.info("Starting managers with the following startup configuration:");
+            this.getStartupConfig().logConfiguration();
+
+            this.constructStore();
+        }
         if (managers == null) {
-            managers = new Managers(this.getStartupConfig());
+            managers = new Managers(storeToUse, this.getStartupConfig());
         }
         if(services == null) {
             services = createServices(config, managers);
@@ -135,8 +144,8 @@ public class GreenMail extends ConfiguredGreenMail {
             }
         }
 
-        if (this.managers != null) {
-            this.managers.stop();
+        if (this.storeToUse != null) {
+            this.storeToUse.stop();
         }
 
         managers = null;
@@ -147,6 +156,19 @@ public class GreenMail extends ConfiguredGreenMail {
     public void reset() {
         stop();
         start();
+    }
+
+    /**
+     * Creates the store class (InMemory or File-based), depending on the Startup Properties.
+     */
+    private void constructStore() {
+        if ("com.icegreen.greenmail.filestore.MBoxFileStore".equals(this.getStartupConfig().getStoreClassImplementation())) {
+            this.storeToUse = new MBoxFileStore(this.getStartupConfig());
+        }
+        else {
+            // Default: Use the InMemoryStore
+            this.storeToUse = new InMemoryStore(this.getStartupConfig());
+        }
     }
 
     /**
