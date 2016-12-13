@@ -30,8 +30,7 @@ public class ImapProtocolTest {
     @StoreChooser(store="file,memory")
     public void testFetchUidsAndSize() throws MessagingException {
         greenMail.setUser("foo@localhost", "pwd");
-        GreenMailUtil.sendTextEmail("foo@localhost", "bar@localhost", "Test UIDFolder",
-                "Test message", ServerSetupTest.SMTP);
+        GreenMailUtil.sendTextEmail("foo@localhost", "bar@localhost", "Test UIDFolder","Test message", ServerSetupTest.SMTP);
 
         final IMAPStore store = greenMail.getImap().createStore();
         store.connect("foo@localhost", "pwd");

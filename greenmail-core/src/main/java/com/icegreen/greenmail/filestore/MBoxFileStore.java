@@ -54,9 +54,8 @@ public class MBoxFileStore implements Store {
         this.pidFile = this.rootDir.resolve("greenmail.pid");
         if (Files.isRegularFile(this.pidFile)) {
             String errStr = "Greenmail PID file '" + this.pidFile.toAbsolutePath().toString() + "' already exists. No two running Greenmail instances can access the same filestore. " +
-                    " Please make sure that the process referred in the PID file is no longer running, and then delete the PID file manually. Thank you.";
-            log.error(errStr);
-            throw new UncheckedFileStoreException(errStr);
+                    " Please make sure that the process referred in the PID file is no longer running, and then delete the PID file manually. But now continue anyhow.";
+            log.warn(errStr);
         }
 
         this.userListFile = this.rootDir.resolve("userlist");
