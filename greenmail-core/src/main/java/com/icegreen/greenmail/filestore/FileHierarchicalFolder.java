@@ -15,6 +15,8 @@ import javax.mail.UIDFolder;
 import javax.mail.internet.MimeMessage;
 import javax.mail.search.SearchTerm;
 
+import com.icegreen.greenmail.filestore.binary.MailboxEntries;
+import com.icegreen.greenmail.filestore.binary.MailboxSettings;
 import com.icegreen.greenmail.filestore.fs.MessageToFS;
 import com.icegreen.greenmail.filestore.fs.MultipleElmFilesForMultipleMessages;
 import com.icegreen.greenmail.foedus.util.MsgRangeFilter;
@@ -45,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * <p>
  * mailbox/msg_number_uid_millis           : Text file with message content
  */
-class FileHierarchicalFolder implements MailFolder, UIDFolder {
+public class FileHierarchicalFolder implements MailFolder, UIDFolder {
     private final Logger log = LoggerFactory.getLogger(FileHierarchicalFolder.class);
 
     private final List<FolderListener> _mailboxListeners = Collections.synchronizedList(new ArrayList<FolderListener>());
@@ -92,7 +94,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
             log.error(errorStr, io);
             throw new UncheckedFileStoreException(errorStr, io);
         }
-        log.debug("Leaving FileHierarchicalFolder constructor for path: " + this.pathToDir.toAbsolutePath().toString() + " with # of messages: " + this.entries.list.size());
+        log.debug("Leaving FileHierarchicalFolder constructor for path: " + this.pathToDir.toAbsolutePath().toString() + " with # of messages: " + this.entries.getMessageCount());
     }
 
     /**
@@ -137,10 +139,6 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
         return false;
     }
 
-    public FileHierarchicalFolder getParent() {
-        return this.ctx.getMailboxForPath(pathToDir.getParent());
-    }
-
     @Override
     public String getName() {
         return name;
@@ -159,9 +157,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public int getMessageCount() {
         this.setLastAccessed();
-        synchronized (this.entries.syncLock) {
-            return this.entries.list.size();
-        }
+        return this.entries.getMessageCount();
     }
 
     @Override
@@ -186,16 +182,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public int getUnseenCount() {
         this.setLastAccessed();
-        int numUnSeen = 0;
-
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (!FileStoreUtil.isSeenFlagSet(entry.getFlagBitSet())) {
-                    numUnSeen++;
-                }
-            }
-        }
-        return numUnSeen;
+        return this.entries.getUnseenCount();
     }
 
     /**
@@ -206,41 +193,23 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public int getFirstUnseen() {
         this.setLastAccessed();
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (!FileStoreUtil.isSeenFlagSet(entry.getFlagBitSet())) {
-                    return entry.getMsgNum();
-                }
-            }
-        }
-        return -1;
+        return this.entries.getFirstUnseen();
     }
 
     @Override
     public int getRecentCount(boolean reset) {
         this.setLastAccessed();
-        int numRecent = 0;
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (FileStoreUtil.isRecentFlagSet(entry.getFlagBitSet())) {
-                    numRecent++;
-                }
-            }
-        }
-        return numRecent;
+        return this.entries.getRecentCount();
     }
 
     @Override
     public int getMsn(long uid) throws FolderException {
         this.setLastAccessed();
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry e : this.entries.list) {
-                if (uid == e.getUid()) {
-                    return e.getMsgNum();
-                }
-            }
+        int result = this.entries.getMsnForUID(uid);
+        if (result == -1) {
+            throw new FolderException("No such message with UID '" + uid + "' in folder: " + this.pathToDir.toString());
         }
-        throw new FolderException("No such message with UID '" + uid + "' in folder: " + this.pathToDir.toString());
+        return result;
     }
 
     @Override
@@ -257,33 +226,17 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public List<StoredMessage> getMessages(MsgRangeFilter range) {
         this.setLastAccessed();
-        ArrayList<MessageEntry> matchedMessages = new ArrayList<>();
-
-        // First: Filter the messages which we are going to return:
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (range.includes(entry.getMsgNum())) {
-                    matchedMessages.add(entry);
-                }
-            }
-        }
+        List<MessageEntry> matchedMessages = this.entries.getMessagesByRangeFilterForMsgNum(range);
         return retrieveAllMessagesFromList(matchedMessages);
     }
 
     public List<StoredMessage> getMessageEntries() {
         this.setLastAccessed();
-        ArrayList<MessageEntry> matchedMessages = new ArrayList<>();
-
-        // First: Filter the messages which we are going to return:
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                matchedMessages.add(entry);
-            }
-        }
+        List<MessageEntry> matchedMessages = this.entries.getAllMessages();
         return retrieveAllMessagesFromList(matchedMessages);
     }
 
-    private List<StoredMessage> retrieveAllMessagesFromList(ArrayList<MessageEntry> matchedMessages) {
+    private List<StoredMessage> retrieveAllMessagesFromList(List<MessageEntry> matchedMessages) {
         List<StoredMessage> ret = new ArrayList<>();
         for (MessageEntry entry : matchedMessages) {
             ret.add(retrieveOneMessage(entry));
@@ -308,12 +261,12 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
 
     @Override
     public boolean isSelectable() {
-        return this.settings.isSelectable;
+        return this.settings.isSelectable();
     }
 
     public void setSelectable(boolean selectable) {
         this.setLastAccessed();
-        this.settings.isSelectable = selectable;
+        this.settings.setSelectable(selectable);
         this.settings.storeFileToFS();
     }
 
@@ -334,12 +287,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
 
         MessageEntry entry = new MessageEntry(uid);
 
-        int newIndex = 0;
-        synchronized (this.entries.syncLock) {
-            entry.setMsgNum(this.entries.list.size() + 1);
-            newIndex = this.entries.list.size();
-            this.entries.list.add(entry);
-        }
+        int newIndex = this.entries.createNewMessageEntry(entry);
 
         try {
             // Now, adapt the messages:
@@ -349,9 +297,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
             entry.setFlagBitSet(FileStoreUtil.convertFlagsToFlagBitSet(storedMessage.getMimeMessage().getFlags()));
             log.debug("Successfully added a new entry to the FS with uid '" + entry.getUid() + "' and flags: " + entry.getFlagBitSet());
 
-            synchronized (this.entries.syncLock) {
-                this.entries.storeFileToFSForSingleEntryWithoutSync(newIndex);
-            }
+            this.entries.storeFileToFSForSingleEntry(newIndex);
         }
         catch (IOException e) {
             String errorStr = "IOException happened while writing message to disk: " + uid;
@@ -376,16 +322,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public List<StoredMessage> getNonDeletedMessages() {
         this.setLastAccessed();
-        ArrayList<MessageEntry> matchedMessages = new ArrayList<>();
-
-        // First: Filter the messages which we are going to return:
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (!FileStoreUtil.isDeletedFlagSet(entry.getFlagBitSet())) {
-                    matchedMessages.add(entry);
-                }
-            }
-        }
+        List<MessageEntry> matchedMessages = this.entries.getNonDeletedMessages();
         return retrieveAllMessagesFromList(matchedMessages);
     }
 
@@ -400,73 +337,30 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
         log.debug("  silentListener : " + silentListener);
         log.debug("  addUid         : " + addUid);
 
-        MessageEntry me = null;
-        int meIndex = 0;
-
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (entry.getUid() == uid) {
-                    me = entry;
-                    break;
-                }
-                meIndex++;
-            }
-
-            if (me != null) {
-                log.debug("Found message where to set the flags: " + me.getUid());
-                if (value) {
-                    // Set the flags
-                    log.debug("  Bitset before setting Flags: " + me.getFlagBitSet());
-                    int flagsToSet = FileStoreUtil.convertFlagsToFlagBitSet(flags);
-                    int newFlags = me.getFlagBitSet();
-                    newFlags |= flagsToSet;
-                    me.setFlagBitSet(newFlags);
-                    log.debug("  Bitset after  setting Flags: " + me.getFlagBitSet());
-                }
-                else {
-                    // TODO: Delete the flags
-                    // if BIT is set, we should delete it in entr.flagBitSet... not yet implemented.
-                }
-            }
-            this.entries.storeFileToFSForSingleEntryWithoutSync(meIndex);
-        }
+        MessageEntry me = this.entries.setFlags(flags, value, uid);
 
         Long uidNotification = null;
         if (addUid) {
             uidNotification = uid;
         }
-        notifyFlagUpdate(me.getMsgNum(), FileStoreUtil.convertFlagBitSetToFlags(me.getFlagBitSet()), uidNotification, silentListener);
+        if (me != null) {
+            notifyFlagUpdate(me.getMsgNum(), FileStoreUtil.convertFlagBitSetToFlags(me.getFlagBitSet()), uidNotification, silentListener);
+        }
     }
 
     @Override
     public void replaceFlags(Flags flags, long uid, FolderListener silentListener, boolean addUid) throws FolderException {
         this.setLastAccessed();
-        MessageEntry me = null;
-        int meIndex = 0;
 
-
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (entry.getUid() == uid) {
-                    me = entry;
-                    break;
-                }
-                meIndex++;
-            }
-            if (me != null) {
-                // Set the flags
-                me.setFlagBitSet(FileStoreUtil.convertFlagsToFlagBitSet(flags));
-            }
-
-            this.entries.storeFileToFSForSingleEntryWithoutSync(meIndex);
-        }
-
+        MessageEntry me = this.entries.replaceFlags(flags, uid);
 
         Long uidNotification = null;
         if (addUid) {
             uidNotification = uid;
         }
-        notifyFlagUpdate(me.getMsgNum(), FileStoreUtil.convertFlagBitSetToFlags(me.getFlagBitSet()), uidNotification, silentListener);
+        if (me != null) {
+            notifyFlagUpdate(me.getMsgNum(), FileStoreUtil.convertFlagBitSetToFlags(me.getFlagBitSet()), uidNotification, silentListener);
+        }
     }
 
     private void notifyFlagUpdate(int msn, Flags flags, Long uidNotification, FolderListener silentListener) {
@@ -499,19 +393,13 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     public StoredMessage getMessage(long uid) {
         this.setLastAccessed();
         log.debug("Entering getMessage with uid: " + uid);
-        MessageEntry me = null;
+        MessageEntry me = this.entries.getMessageByUid(uid);
 
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (entry.getUid() == uid) {
-                    me = entry;
-                }
-            }
-        }
         if (me == null) {
             log.debug("Leaving getMessage with null, message does not exist.");
             return null;
         }
+
         log.debug("Leaving getMessage with uid by trying to retrieve the message from FS.");
         return retrieveOneMessage(me);
     }
@@ -524,16 +412,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public long[] getMessageUids() {
         this.setLastAccessed();
-        log.debug("Entering getMessageUids");
-        synchronized (this.entries.syncLock) {
-            int num = this.entries.list.size();
-            long[] ret = new long[num];
-            for (int i = 0; i < num; i++) {
-                ret[i] = this.entries.list.get(i).getUid();
-            }
-            log.debug("Leaving getMessageUids with array with # of entries: " + num);
-            return ret;
-        }
+        return this.entries.getAllMessageUids();
     }
 
     /**
@@ -546,21 +425,9 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public long[] getMessageUidsByUidRange(IdRange[] uidRange) {
         this.setLastAccessed();
+
         log.debug("Entering getMessageUidsByUidRange");
-        ArrayList<Long>matchedUids = new ArrayList<>();
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry e : this.entries.list) {
-                if (includes(uidRange, e.getUid())) {
-                    matchedUids.add(e.getUid());
-                }
-            }
-        }
-        long[] result = new long[matchedUids.size()];
-        int index = 0;
-        for (Long matchedUid : matchedUids) {
-            result[index] = matchedUid.longValue();
-            index++;
-        }
+        long[] result = this.entries.getMessageUidByRangeFilterForUid(uidRange);
         log.debug("Leaving getMessageUidsByUidRange with array with # of entries: " + result.length);
         return result;
     }
@@ -571,26 +438,13 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
      * @param msgNumRange - Range of message numbers
      *
      * @return - an array of uids, which can be empty
-     * @throws FolderException
      */
     @Override
     public long[] getMessageUidsByMsgNumRange(IdRange[] msgNumRange) throws FolderException {
         this.setLastAccessed();
+
         log.debug("Entering getMessageUidsByMsgNumRange");
-        ArrayList<Long>matchedUids = new ArrayList<>();
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry e : this.entries.list) {
-                if (includes(msgNumRange, e.getMsgNum())) {
-                    matchedUids.add(e.getUid());
-                }
-            }
-        }
-        long[] result = new long[matchedUids.size()];
-        int index = 0;
-        for (Long matchedUid : matchedUids) {
-            result[index] = matchedUid.longValue();
-            index++;
-        }
+        long[] result = this.entries.getMessageUidByRangeFilterForMsgNum(msgNumRange);
         log.debug("Leaving getMessageUidsByMsgNumRange with array with # of entries: " + result.length);
         return result;
     }
@@ -603,42 +457,21 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
      */
     public long getMessageUidOfLastMessage() {
         log.debug("Entering getMessageUidOfLastMessage");
-        long result = -1;
-        synchronized (this.entries.syncLock) {
-            if (!this.entries.list.isEmpty()) {
-                result = this.entries.list.get(this.entries.list.size() - 1).getUid();
-            }
+        MessageEntry lastMessage = this.entries.getLastMessage();
+
+        int result = -1;
+        if (lastMessage != null) {
+            return lastMessage.getUid();
         }
         log.debug("Leaving getMessageUidOfLastMessage with result: " + result);
         return result;
     }
 
-    protected boolean includes(IdRange[] idSet, long id) {
-        for (IdRange idRange : idSet) {
-            if (idRange.includes(id)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
     @Override
     public void deleteAllMessages() {
         this.setLastAccessed();
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                Path fullpath = this.pathToDir.resolve(entry.getShortFileName());
-                if (Files.isRegularFile(fullpath)) {
-                    try {
-                        Files.delete(fullpath);
-                    } catch (IOException ign) {
-                        log.warn("Ignore IOException while deleting message with filename." + fullpath, ign);
-                    }
-                }
-            }
-            this.entries.list.clear();
-        }
+
+        this.entries.deleteAllMessages(this.pathToDir);
     }
 
 
@@ -648,10 +481,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
         log.debug("Entering search with : " + searchTerm);
 
         // This is quite ugly, we need to load all the message into memory and search for each one individually:
-        ArrayList<MessageEntry> copyList = new ArrayList<>();
-        synchronized (this.entries.syncLock) {
-            copyList.addAll(this.entries.list);
-        }
+        List<MessageEntry> copyList = this.entries.cloneList();
 
         ArrayList<Long> result = new ArrayList<>();
         for (MessageEntry entry : copyList) {
@@ -697,47 +527,9 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public void expunge(IdRange[] idRanges) {
         this.setLastAccessed();
+
         log.debug("Entering expunge with id range: " + idRanges);
-
-        ArrayList<MessageEntry> toDelete = new ArrayList<>();
-        int numDeleted = 0;
-
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (FileStoreUtil.isDeletedFlagSet(entry.getFlagBitSet()) && (idRanges == null || IdRange.containsUid(idRanges, entry.getUid()))) {
-                    toDelete.add(entry);
-                }
-            }
-
-            for (MessageEntry delEntry : toDelete) {
-                log.debug("  Expunge message with uid: " + delEntry.getUid() + " and msgNum: " + delEntry.getMsgNum());
-
-                // Step 1: Remove from list
-                this.entries.list.remove(delEntry);
-
-                // Step 2: Delete file:
-                try {
-                    Path toDelPath = this.pathToDir.resolve(delEntry.getShortFileName());
-                    log.debug("  Delete file for expunged message: " + toDelPath.toString());
-                    Files.delete(toDelPath);
-                    numDeleted++;
-                }
-                catch (IOException io) {
-                    // Ugly, but it is really not so important if the file cannog be deleted. Let's log it and go ahead.
-                    //TODO: logging
-                }
-            }
-
-            // Finally, we have to renumber the messages again, because messageNumber is actually just an 1-based index
-            // into the list:
-            int index = 1;
-            for (MessageEntry entry : this.entries.list) {
-                entry.setMsgNum(index);
-                index++;
-            }
-
-            this.entries.storeFileToFSWithoutSync();
-        }
+        List<MessageEntry> toDelete = this.entries.expunge(idRanges, this.pathToDir);
 
         // Finally, inform thee listeners
         // TODO: This has to be done backwards, which is quite ugly. Check out why this is so and fix it, and make the order in
@@ -750,7 +542,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
             }
         }
 
-        log.debug("Leaving expunge, deleted # of messages: " + numDeleted);
+        log.debug("Leaving expunge, deleted # of messages: " + toDelete.size());
     }
 
     @Override
@@ -771,7 +563,7 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
 
     @Override
     public String toString() {
-        return "FileHierarchicalFolder{" + "name='" + name + '\'' + ", path=" + this.pathToDir + ", isSelectable=" + this.settings.isSelectable + '}';
+        return "FileHierarchicalFolder{" + "name='" + name + '\'' + ", path=" + this.pathToDir + ", isSelectable=" + this.settings.isSelectable() + '}';
     }
 
 
@@ -788,47 +580,24 @@ class FileHierarchicalFolder implements MailFolder, UIDFolder {
     @Override
     public Message[] getMessagesByUID(long start, long end) throws MessagingException {
         this.setLastAccessed();
-        ArrayList<MessageEntry> matchedMessages = new ArrayList<>();
-
-        // First: Filter the messages which we are going to return:
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                if (entry.getUid() >= start && entry.getUid() <= end) {
-                    matchedMessages.add(entry);
-                }
-            }
-        }
+        List<MessageEntry> matchedMessages = this.entries.getMessagesByUIDBetween(start, end);
 
         return retrieveAllMimeMessagesFromList(matchedMessages);
     }
-
-    private Message[] retrieveAllMimeMessagesFromList(ArrayList<MessageEntry> matchedMessages) {
-        List<Message> ret = new ArrayList<>();
-        for (MessageEntry entry : matchedMessages) {
-            ret.add(retrieveOneMessage(entry).getMimeMessage());
-        }
-        return ret.toArray(new Message[this.entries.list.size()]);
-    }
-
 
     @Override
     public Message[] getMessagesByUID(long[] uids) throws MessagingException {
         this.setLastAccessed();
-        ArrayList<MessageEntry> matchedMessages = new ArrayList<>();
-
-        // First: Filter the messages which we are going to return:
-        synchronized (this.entries.syncLock) {
-            for (MessageEntry entry : this.entries.list) {
-                for (long searchUid : uids) {
-                    if (entry.getUid() == searchUid) {
-                        matchedMessages.add(entry);
-                        break;
-                    }
-                }
-            }
-        }
-
+        List<MessageEntry> matchedMessages = this.entries.getMessagesByUIDFromArray(uids);
         return retrieveAllMimeMessagesFromList(matchedMessages);
+    }
+
+    private Message[] retrieveAllMimeMessagesFromList(List<MessageEntry> matchedMessages) {
+        List<Message> ret = new ArrayList<>();
+        for (MessageEntry entry : matchedMessages) {
+            ret.add(retrieveOneMessage(entry).getMimeMessage());
+        }
+        return ret.toArray(new Message[matchedMessages.size()]);
     }
 
     @Override

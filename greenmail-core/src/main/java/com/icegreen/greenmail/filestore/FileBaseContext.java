@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
  * because then we can always change a setting of a mailbox in-memory and store in the mailbox
  * setting file, and we don't have to read the (possibly changed) setting file again and again.
  */
-class FileBaseContext {
+public class FileBaseContext {
     final Logger log = LoggerFactory.getLogger(FileBaseContext.class);
 
     private static final long UID_RANGE = 1000;
@@ -60,7 +60,7 @@ class FileBaseContext {
     /**
      * Package-Private constructor, only to be invoked by the filestore package.
      */
-    FileBaseContext(Path pathToMboxRootDir) {
+    public FileBaseContext(Path pathToMboxRootDir) {
         this.mboxFileStoreRootDir = pathToMboxRootDir;
         if (!Files.isDirectory(this.mboxFileStoreRootDir)) {
             // We have to create the directory if it does not exist

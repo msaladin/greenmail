@@ -91,7 +91,6 @@ class MailboxEntries {
         synchronized (this.syncLock) {
             if (Files.isRegularFile(this.mailboxEntriesFile)) {
                 try {
-                    boolean changedEntries = false;
                     try (InputStream is = Files.newInputStream(this.mailboxEntriesFile); DataInputStream dis = new DataInputStream(is)) {
                         while (true) {
                             try {
@@ -105,7 +104,8 @@ class MailboxEntries {
                         }
                     }
 
-                   changedEntries = mtf.cleanupAfterLoading(this.list);
+                    // Make sure that we really delete messages which no longer exist on the file system:
+                    boolean changedEntries = mtf.cleanupAfterLoading(this.list);
 
                     if (changedEntries) {
                         // cleanupAfterLoading changed the entries in the file, store them immediatly back to the FS

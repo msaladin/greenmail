@@ -17,7 +17,7 @@ public class MessageEntry {
     // Instance variables used for MultipleElmFilesForMultipleMessages
     private String shortFilename = null;
 
-    protected MessageEntry() {
+    public MessageEntry() {
     }
 
     protected MessageEntry(long theUID) {
