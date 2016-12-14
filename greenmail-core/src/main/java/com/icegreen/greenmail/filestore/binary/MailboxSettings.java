@@ -1,4 +1,4 @@
-package com.icegreen.greenmail.filestore;
+package com.icegreen.greenmail.filestore.binary;
 
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
@@ -12,6 +12,8 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import com.icegreen.greenmail.filestore.FileHierarchicalFolder;
+import com.icegreen.greenmail.filestore.UncheckedFileStoreException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,71 +22,57 @@ import org.slf4j.LoggerFactory;
  * File name is normally greenmail.mailbox.binary
  * See methods writeToDOS() and readFromDIS() for more information about the content of the file.
  */
-class MailboxSettings {
+public class MailboxSettings extends BaseBinarySettingsFile {
     final Logger log = LoggerFactory.getLogger(FileHierarchicalFolder.class);
-
-    private final Object syncLock = new Object();
 
     // Settings which are stored in the mailboxSettingsFile:
     boolean isSelectable = false;
 
-    private Path mailboxSettingsFile;
-
-    MailboxSettings(Path pathToSettingsFile) {
-        this.mailboxSettingsFile = pathToSettingsFile;
+    public MailboxSettings(Path pathToSettingsFile) {
+        super(pathToSettingsFile, "mailbox settings");
     }
 
     /**
      * Load the settings from the settings file from the file system.
      */
-    void loadFileFromFS() {
+    public void loadFileFromFS() {
         synchronized (this.syncLock) {
-            if (Files.isRegularFile(this.mailboxSettingsFile)) {
+            if (Files.isRegularFile(this.pathToBinaryFile)) {
                 try {
-                    try (InputStream is = Files.newInputStream(this.mailboxSettingsFile); DataInputStream dis = new DataInputStream(is)) {
+                    try (InputStream is = Files.newInputStream(this.pathToBinaryFile); DataInputStream dis = new DataInputStream(is)) {
                         this.readFromDIS(dis);
                     }
                 }
                 catch (IOException e) {
-                    String errorStr = "IOException happened while trying to read settings file: " + this.mailboxSettingsFile;
+                    String errorStr = "IOException happened while trying to read settings file: " + this.pathToBinaryFile;
                     log.error(errorStr, e);
                     throw new UncheckedFileStoreException(errorStr, e);
                 }
             }
         }
+    }
+
+    public boolean isSelectable() {
+        return this.isSelectable;
+    }
+
+    public void setSelectable(boolean theSelectableBool) {
+        this.isSelectable = theSelectableBool;
     }
 
     /**
      * Store the setting file with the settings to the file system. Overwrite existing files.
      */
-    void storeFileToFS() {
+    public void storeFileToFS() {
         synchronized (this.syncLock) {
             try {
-                try (OutputStream os = Files.newOutputStream(this.mailboxSettingsFile, CREATE, WRITE, TRUNCATE_EXISTING); DataOutputStream dos = new DataOutputStream(os)) {
+                try (OutputStream os = Files.newOutputStream(this.pathToBinaryFile, CREATE, WRITE, TRUNCATE_EXISTING); DataOutputStream dos = new DataOutputStream(os)) {
                     this.writeToDOS(dos);
                     dos.flush();
                 }
             }
             catch (IOException e) {
-                throw new UncheckedFileStoreException("IOException happened while trying to write settings file: " + this.mailboxSettingsFile, e);
-            }
-        }
-    }
-
-    /**
-     * Delete the setting file from the filesystem.
-     */
-    void deleteFileFromFS() {
-        synchronized (this.syncLock) {
-            if (Files.isRegularFile(this.mailboxSettingsFile)) {
-                try {
-                    Files.delete(this.mailboxSettingsFile);
-                }
-                catch (IOException e) {
-                    String errorStr = "IOException happened while trying to delete settings: " + this.mailboxSettingsFile;
-                    log.error(errorStr, e);
-                    throw new UncheckedFileStoreException(errorStr, e);
-                }
+                throw new UncheckedFileStoreException("IOException happened while trying to write settings file: " + this.pathToBinaryFile, e);
             }
         }
     }

@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 
+import com.icegreen.greenmail.filestore.binary.FilestoreSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,13 +42,10 @@ public class FileBaseContext {
     // Path to the rootDir of the FileStore
     private final Path mboxFileStoreRootDir;
 
-    // Path to the filebased mailbox settings. These settings exist only once for each FileStore.
-    private final Path fileStoreSettings;
-
     // Cache of all created FileHierarchicalFolder.
     private HashMap<Path, FileHierarchicalFolder> mailboxCache = new HashMap<>();
 
-    private long uidNextRange = -1;
+    private FilestoreSettings filestoreSettings;
     private long nextUidToUse = 0;
 
     // When a mailbox is not used for more than 12 hours, assume that nobody is really doing something
@@ -61,6 +59,8 @@ public class FileBaseContext {
      * Package-Private constructor, only to be invoked by the filestore package.
      */
     public FileBaseContext(Path pathToMboxRootDir) {
+
+
         this.mboxFileStoreRootDir = pathToMboxRootDir;
         if (!Files.isDirectory(this.mboxFileStoreRootDir)) {
             // We have to create the directory if it does not exist
@@ -74,7 +74,7 @@ public class FileBaseContext {
             }
         }
 
-        this.fileStoreSettings = this.mboxFileStoreRootDir.resolve("greenmail.filestore.binary");
+        this.filestoreSettings = new FilestoreSettings(this.mboxFileStoreRootDir.resolve("greenmail.filestore.binary"));
         this.initUidGenerator();
     }
 
@@ -130,88 +130,38 @@ public class FileBaseContext {
     void deInitUidGenerator() {
         // Make sure that we don't loose the unused UIDs in the UID range, just write down the next
         // UID to use into the settings file.
-        this.uidNextRange = nextUidToUse;
-        this.storeFileToFS();
+        this.filestoreSettings.setUidNextRange(nextUidToUse);
+        this.filestoreSettings.storeFileToFS();
     }
 
     private void initUidGenerator() {
-        this.uidNextRange = -1;
-        this.loadFileFromFS();
-        if (uidNextRange == -1) {
+        this.filestoreSettings.setUidNextRange(-1);
+        this.filestoreSettings.loadFileFromFS();
+        if (this.filestoreSettings.getUidNextRange() == -1) {
             // No settings file, so we can start anew with UID generator initial values
             this.nextUidToUse = 1;
-            this.uidNextRange = nextUidToUse + UID_RANGE;
+            this.filestoreSettings.setUidNextRange(nextUidToUse + UID_RANGE);
         }
         else {
             // Range read in from settings file, start with UIDs at the read-in range:
-            this.nextUidToUse = this.uidNextRange;
-            this.uidNextRange = nextUidToUse + UID_RANGE;
+            this.nextUidToUse = this.filestoreSettings.getUidNextRange();
+            this.filestoreSettings.setUidNextRange(nextUidToUse + UID_RANGE);
         }
         // Anyhow, we need to store the settings file
-        this.storeFileToFS();
+        this.filestoreSettings.storeFileToFS();
     }
 
     public long getNextUid() {
         long result = nextUidToUse;
         nextUidToUse++;
 
-        if (this.nextUidToUse >= this.uidNextRange) {
+        if (this.nextUidToUse >= this.filestoreSettings.getUidNextRange()) {
             // We have to increase the uidRange about UID_RANGE, because we want to make sure that
             // when we crash and GreenMail is started again, the same UIDs are not reused anymore.
-            this.uidNextRange = this.nextUidToUse + UID_RANGE;
-            this.storeFileToFS();
+            this.filestoreSettings.setUidNextRange(this.nextUidToUse + UID_RANGE);
+            this.filestoreSettings.storeFileToFS();
         }
         return result;
-    }
-
-    /**
-     * The settings file for the MBoxFileStore contains binary instance variables which need to be
-     * persisted during invocations.
-     */
-    private void loadFileFromFS() {
-        if (Files.isRegularFile(this.fileStoreSettings)) {
-            try {
-                try (InputStream is = Files.newInputStream(this.fileStoreSettings); DataInputStream dis = new DataInputStream(is)) {
-                    this.readFromDIS(dis);
-                }
-            }
-            catch (IOException e) {
-                throw new UncheckedFileStoreException("IOException happened while trying to read the Filestore settings file: " + this.fileStoreSettings,e);
-            }
-        }
-    }
-
-    /**
-     * The settings file for the MBoxFileStore contains binary instance variables which need to be
-     * persisted during invocations.
-     */
-    private void storeFileToFS() {
-        try {
-            try (OutputStream os = Files.newOutputStream(this.fileStoreSettings, CREATE, WRITE, TRUNCATE_EXISTING); DataOutputStream dos = new DataOutputStream(os)) {
-                this.writeToDOS(dos);
-                // Do this in a backward compatible way: Only add additional properties at the end!
-                dos.flush();
-            }
-        }
-        catch (IOException e) {
-            throw new UncheckedFileStoreException("IOException happened while trying to write the Filestore settings file: " + this.fileStoreSettings, e);
-        }
-    }
-
-    /**
-     * Writes a single entry to the DataOutputStream
-     */
-    private void writeToDOS(DataOutputStream dos) throws IOException {
-        dos.writeLong(this.uidNextRange);
-        // Do this in a backward compatible way: Only add additional properties at the end!
-    }
-
-    /**
-     * Writes a single entry to the DataOutputStream
-     */
-    private void readFromDIS(DataInputStream dis) throws IOException {
-        this.uidNextRange = dis.readLong();
-        // Do this in a backward compatible way: Only add additional properties at the end!
     }
 
 }
